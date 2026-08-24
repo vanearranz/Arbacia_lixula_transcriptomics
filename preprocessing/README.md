@@ -56,12 +56,12 @@ The original raw data were supplied as gzip-compressed paired-end FASTQ files, w
 
 ```text
 raw_data/
-â”œâ”€â”€ SAMPLE01/
-â”‚   â”œâ”€â”€ SAMPLE01_1.fq.gz
-â”‚   â””â”€â”€ SAMPLE01_2.fq.gz
-â””â”€â”€ SAMPLE02/
-    â”œâ”€â”€ SAMPLE02_1.fq.gz
-    â””â”€â”€ SAMPLE02_2.fq.gz
+ SAMPLE01/
+    SAMPLE01_1.fq.gz
+    SAMPLE01_2.fq.gz
+ SAMPLE02/
+    SAMPLE02_1.fq.gz
+    SAMPLE02_2.fq.gz
 ```
 
 When a biological sample was sequenced across more than one lane, corresponding lane files were concatenated before downstream processing. Forward and reverse reads must be concatenated independently and in the same lane order:
@@ -174,6 +174,8 @@ The unclassified read pairs are retained as the decontaminated input for referen
 
 FastQC and MultiQC are used to inspect the retained read pairs after Kraken2 filtering.
 
+NOTE: Review the Kraken2 reports before removing classified reads.
+
 ### 8. Reference-genome alignment
 
 The reference genome is indexed with HISAT2:
@@ -203,16 +205,11 @@ featureCounts is run on the coordinate-sorted BAM files using the *A. lixula* ge
 
 The resulting gene counts were combined and curated into the count matrix used for DESeq2. featureCounts summary files were inspected individually and with MultiQC.
 
+NOTE: Confirm that featureCounts settings match the feature and identifier attributes in the exact annotation file used.
+
 ## Outputs used for downstream analysis
 
 The primary preprocessing output used by the R workflow is the curated integer gene-count matrix. Column names must correspond exactly to the sample identifiers in `data/sample_metadata.csv`.
 
 Downstream differential expression and functional enrichment analyses are documented in [`../analysis/01_deseq2_analysis.Rmd`](../analysis/01_deseq2_analysis.Rmd). Figure-generation code is provided in [`../analysis/02_figures.Rmd`](../analysis/02_figures.Rmd).
 
-## Important notes
-
-- Do not commit raw FASTQ files, BAM files, reference indexes, Kraken2 databases, or generated QC/output directories to GitHub.
-- Preserve paired-read synchronization throughout filtering.
-- Review the Kraken2 reports before removing classified reads.
-- Confirm that featureCounts settings match the feature and identifier attributes in the exact annotation file used.
-- Record the software and database versions used for the archived analysis.
