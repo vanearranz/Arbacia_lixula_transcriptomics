@@ -31,7 +31,8 @@ The three focal contrasts were:
 ![Arbacia lixula RNA-seq workflow](docs/images/RNAseq_workflow.png)
 
 FastQC and MultiQC reports were examined at multiple stages of preprocessing and alignment.
-Detailed execution steps and software parameters are documented in the corresponding scripts.
+Detailed preprocessing instructions and software parameters are provided in [`preprocessing/README.md`](preprocessing/README.md). 
+Differential expression, functional enrichment, and figure-generation code are available in the [`analysis/`](analysis/) directory.
 
 ## Repository structure
 
