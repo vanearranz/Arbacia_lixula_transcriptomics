@@ -15,3 +15,11 @@ KRAKEN2_DATABASE="/path/to/kraken_db"
 ADAPTER_FILE="/path/to/adapter.fa"
 
 THREADS=32
+
+# featureCounts settings. These must match the annotation file.
+ANNOTATION_FORMAT="GTF"
+FEATURE_TYPE="exon"
+GENE_ATTRIBUTE="gene_id"
+
+# All generated files are written below this directory.
+RESULTS_DIR="${PROJECT_DIR}/results"
