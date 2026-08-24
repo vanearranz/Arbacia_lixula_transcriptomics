@@ -2,12 +2,6 @@
 
 This directory contains the shell scripts used to process paired-end RNA-seq reads from *Arbacia lixula*, from initial read-quality assessment to gene-level quantification.
 
-The workflow supports the analyses reported in:
-
-> Arranz, V., Fernandez-Vilert, R., HernÃ¡ndez, J. C., Pegueroles, C., & PÃ©rez-Portela, R. (2026). Short-term plasticity and long-term transcriptomic rewiring under natural ocean acidification in an ecosystem-relevant sea urchin. *Marine Pollution Bulletin*, 231, 119981. [https://doi.org/10.1016/j.marpolbul.2026.119981](https://doi.org/10.1016/j.marpolbul.2026.119981)
-
-Raw reads are publicly available through NCBI SRA BioProject [PRJNA1404626](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA1404626).
-
 ## Workflow overview
 
 | Step | Script | Software | Main output |
@@ -27,28 +21,14 @@ Raw reads are publicly available through NCBI SRA BioProject [PRJNA1404626](http
 
 The workflow requires the following command-line programs to be available in the execution environment:
 
-- FastQC
-- MultiQC
+- FastQC v0.12.1
+- MultiQC version 1.33
 - SortMeRNA 4
-- Trimmomatic
-- Kraken2
-- HISAT2
-- SAMtools
-- featureCounts, distributed with Subread
-- AGAT, if conversion of the genome annotation from GFF to GTF is required
-
-The analysis was originally executed on a Linux compute server. Exact software versions should be recorded from the environment used for the final run, for example:
-
-```bash
-fastqc --version
-multiqc --version
-sortmerna --version
-trimmomatic -version
-kraken2 --version
-hisat2 --version
-samtools --version
-featureCounts -v
-```
+- Trimmomatic v 0.40
+- Kraken2 v 2.17.1
+- HISAT2 version 2.2.2
+- SAMtools 1.13
+- featureCounts v2.0.3
 
 ## Project configuration
 
