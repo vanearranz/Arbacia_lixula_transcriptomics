@@ -28,7 +28,7 @@ The three focal contrasts were:
 
 ## Analysis workflow
 
-![Arbacia lixula RNA-seq workflow](docs/images/arbacia-rnaseq-workflow.svg)
+![Arbacia lixula RNA-seq workflow](docs/images/RNAseq_workflow.png)
 
 The workflow comprises:
 
