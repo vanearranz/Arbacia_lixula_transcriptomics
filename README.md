@@ -30,20 +30,8 @@ The three focal contrasts were:
 
 ![Arbacia lixula RNA-seq workflow](docs/images/RNAseq_workflow.png)
 
-The workflow comprises:
-
-1. Quality assessment of raw paired-end reads with **FastQC**.
-2. Removal of ribosomal RNA with **SortMeRNA**.
-3. Adapter and quality trimming with **Trimmomatic**.
-4. Screening and removal of contaminant reads with **Kraken2**.
-5. Alignment to the *A. lixula* reference genome with **HISAT2** and processing with **SAMtools**.
-6. Gene-level read quantification with **featureCounts**.
-7. Differential expression analysis with **DESeq2**.
-8. Functional annotation with **eggNOG-mapper**.
-9. Gene Ontology enrichment analysis with **topGO**.
-10. Visualization in **R**, principally using **ggplot2** and **ComplexHeatmap**.
-
 FastQC and MultiQC reports were examined at multiple stages of preprocessing and alignment.
+Detailed execution steps and software parameters are documented in the corresponding scripts.
 
 ## Repository structure
 
