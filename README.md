@@ -45,6 +45,7 @@ Differential expression, functional enrichment, and figure-generation code are a
 │
 ├── preprocessing/
 │   ├── README.md
+│   ├── config.example.sh
 │   ├── 01_fastqc_raw.sh
 │   ├── 02_sortmerna.sh
 │   ├── 03_fastqc_non_rrna.sh
