@@ -38,18 +38,38 @@ Differential expression, functional enrichment, and figure-generation code are a
 
 ```text
 .
-├── analysis/                  # R Markdown analyses
-├── config/                    # Example paths and computing parameters
-├── data/                      # Metadata and documentation for analysis inputs
-├── docs/
-│   ├── images/                # Workflow and documentation images
-│   └── poster/                # Conference poster and related information
-├── scripts/
-│   ├── preprocessing/         # Read preprocessing and quantification scripts
-│   └── functional_annotation/ # Annotation and enrichment preparation
-├── CITATION.cff
+├── README.md
 ├── LICENSE
-└── README.md
+├── CITATION.cff
+├── .gitignore
+│
+├── preprocessing/
+│   ├── README.md
+│   ├── 01_fastqc_raw.sh
+│   ├── 02_sortmerna.sh
+│   ├── 03_fastqc_non_rrna.sh
+│   ├── 04_trimmomatic.sh
+│   ├── 05_fastqc_trimmed.sh
+│   ├── 06_kraken2.sh
+│   ├── 07_fastqc_decontaminated.sh
+│   ├── 08_hisat2.sh
+│   ├── 09_alignment_qc.sh
+│   └── 10_featurecounts.sh
+│
+├── analysis/
+│   ├── 01_deseq2_analysis.Rmd
+│   └── 02_figures.Rmd
+│
+├── data/
+│   ├── README.md
+│   └── sample_metadata.csv
+│
+└── docs/
+    ├── images/
+    │   ├── RNAseq_workflow.png
+    │   └── RNAseq_workflow.pdf
+    └── poster/
+        └── Arranz_ECE12_poster.pdf
 ```
 
 Large sequencing and intermediate files are not stored in this repository. This includes FASTQ, BAM, genome-index, Kraken2 database, and pipeline-output files.
