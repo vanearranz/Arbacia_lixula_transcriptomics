@@ -30,8 +30,6 @@ The three focal contrasts were:
 
 ![Arbacia lixula RNA-seq workflow](docs/images/RNAseq_workflow.png)
 
-
-
 The workflow is divided into two main stages:
 
 ### A. Preprocessing and alignment 
@@ -68,20 +66,17 @@ analysis order, treatment definitions, and expected outputs.
 
 The reference genome assembly is available from ENA under accession [CAVLGW020000000](https://www.ebi.ac.uk/ena/browser/view/CAVLGW020000000). The genome annotation used for read quantification is available from the [*Arbacia lixula* genome repository](https://github.com/EvolutionaryGenetics-UB-CEAB/Arbacia_lixula_genome).
 
-Further sequencing-data availability and accession information are reported in the associated publication. A description of the input files required to reproduce the analyses is provided in [`data/README.md`](data/README.md).
+Raw reads are deposited in SRA (BioProject [PRJNA1404626](https://www.ncbi.nlm.nih.gov/sra/?term=PRJNA1404626); BioSamples SAMN54720664–SAMN54720687).
+
+Metadata and sample identifiers are provided in Supplementary Table S1.
 
 ## Reproducibility
 
 The original analysis scripts are being curated to replace machine-specific paths with configurable project directories and to document software requirements and analytical decisions. Software versions and execution instructions will be recorded alongside the corresponding scripts.
 
-## Related outputs
-
-- [Published article](https://doi.org/10.1016/j.marpolbul.2026.119981)
-- Conference poster: to be added as a privacy-safe export
-
 ## Citation
 
-If you use this workflow, please cite the associated publication above. Citation metadata for this repository are also provided in [`CITATION.cff`](CITATION.cff).
+If you use this workflow, please cite the associated [Published article](https://doi.org/10.1016/j.marpolbul.2026.119981)
 
 ## License
 
