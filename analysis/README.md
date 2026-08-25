@@ -34,7 +34,8 @@ Reconstructs the biomineralization annotation workflow:
 
 1. Imports the eggNOG-mapper annotation table.
 2. Standardizes *Strongylocentrotus purpuratus* identifiers.
-3. Joins eggNOG orthologues with the Dylus and Pespeni skeletogenic gene lists.
+3. Joins eggNOG orthologues with two published echinoderm skeletogenic and
+   biomineralization gene lists.
 4. Retains one best eggNOG hit per *Arbacia lixula* gene using the lowest
    e-value and highest score.
 5. Identifies biomineralization candidates and assigns broad functional
@@ -42,9 +43,27 @@ Reconstructs the biomineralization annotation workflow:
 6. Writes the processed annotations and candidate lists under
    `results/annotations/`.
 
-The script preferentially uses `data/annotations/eggnog_annotations.csv`. It
-can use the legacy pre-merged `eggnog_biomineralization.csv` if the original
-eggNOG table is unavailable.
+The reference gene lists were obtained from:
+
+- `biomineralization_genes_pespeni.xlsx`: biomineralization-related genes
+  compiled from the sea urchin study by [Pespeni et al. (2013)](https://doi.org/10.1073/pnas.1220673110),
+  *Evolutionary change during experimental ocean acidification*.
+
+- `skeletogenic_genes_dylus.tsv`: skeletogenic genes compiled from the
+  developmental transcriptomic study of the brittle star *Amphiura filiformis*
+  by [Dylus et al. (2018)](https://doi.org/10.1186/s13059-018-1402-8),
+  *Developmental transcriptomics of the brittle star Amphiura filiformis
+  reveals gene regulatory network rewiring in echinoderm larval skeleton
+  evolution*.
+
+The corresponding *Strongylocentrotus purpuratus* identifiers (`SPU` IDs) were
+matched against the eggNOG-mapper orthologues assigned to *A. lixula* genes.
+These lists were used to identify candidate biomineralization-related genes and
+do not represent direct functional validation in *A. lixula*.
+
+The script uses `data/annotations/eggnog_annotations.csv` together with the two
+reference gene lists and generates the combined annotation tables under
+`results/annotations/`.
 
 ### `03_topgo_enrichment.Rmd`
 
