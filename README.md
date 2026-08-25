@@ -30,50 +30,39 @@ The three focal contrasts were:
 
 ![Arbacia lixula RNA-seq workflow](docs/images/RNAseq_workflow.png)
 
-FastQC and MultiQC reports were examined at multiple stages of preprocessing and alignment.
-Detailed preprocessing instructions and software parameters are provided in [`preprocessing/README.md`](preprocessing/README.md). 
-Differential expression, functional enrichment, and figure-generation code are available in the [`analysis/`](analysis/) directory.
 
-## Repository structure
 
-```text
-.
-├── README.md
-├── LICENSE
-├── CITATION.cff
-├── .gitignore
-│
-├── preprocessing/
-│   ├── README.md
-│   ├── config.example.sh
-│   ├── 01_fastqc_raw.sh
-│   ├── 02_sortmerna.sh
-│   ├── 03_fastqc_non_rrna.sh
-│   ├── 04_trimmomatic.sh
-│   ├── 05_fastqc_trimmed.sh
-│   ├── 06_kraken2.sh
-│   ├── 07_fastqc_decontaminated.sh
-│   ├── 08_hisat2.sh
-│   ├── 09_alignment_qc.sh
-│   └── 10_featurecounts.sh
-│
-├── analysis/
-│   ├── 01_deseq2_analysis.Rmd
-│   └── 02_figures.Rmd
-│
-├── data/
-│   ├── README.md
-│   └── sample_metadata.csv
-│
-└── docs/
-    ├── images/
-    │   ├── RNAseq_workflow.png
-    │   └── RNAseq_workflow.pdf
-    └── poster/
-        └── Arranz_ECE12_poster.pdf
-```
+The workflow is divided into two main stages:
 
-Large sequencing and intermediate files are not stored in this repository. This includes FASTQ, BAM, genome-index, Kraken2 database, and pipeline-output files.
+### A. Preprocessing and alignment 
+
+The `A.Preprocessing/` directory contains the shell scripts used to process
+the raw paired-end RNA-seq reads, including quality control, rRNA removal,
+adapter and quality trimming, contaminant removal, reference-genome alignment,
+and gene-level quantification.
+
+See [`preprocessing/README.md`](preprocessing/README.md) for the required inputs,
+analysis order, treatment definitions, and expected outputs.
+
+Because of their size, intermediate FASTQ, BAM, quality-control reports, and
+other preprocessing outputs are not stored in this repository. The curated
+featureCounts matrix produced by this workflow is provided as
+`data/count_curated.csv`.
+
+### B. Statistical and functional analyses
+
+The `analysis/` directory contains the R Markdown workflows used for:
+
+1. DESeq2 differential expression analysis;
+2. biomineralization-gene annotation;
+3. GO enrichment with topGO;
+4. generation of figures.
+
+These analyses use `data/count_curated.csv`, `data/sample_metadata.csv`, and
+the functional annotation files under `data/annotations/`.
+
+See [`analysis/README.md`](analysis/README.md) for the required inputs,
+analysis order, treatment definitions, and expected outputs.
 
 ## Data availability
 
