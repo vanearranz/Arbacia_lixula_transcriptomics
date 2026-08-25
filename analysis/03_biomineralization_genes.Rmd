@@ -1,0 +1,223 @@
+---
+title: "Identification of biomineralization-related genes"
+author: "Vanessa Arranz"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+here::i_am("analysis/03_biomineralization_genes.Rmd")
+```
+
+# Purpose
+
+This analysis links *Arbacia lixula* eggNOG-mapper annotations to two published
+sea-urchin skeletogenic/biomineralization gene lists. Identifiers are
+standardised before joining, duplicate reference identifiers are removed, and
+one best eggNOG hit is retained per *A. lixula* gene.
+
+# Packages and paths
+
+```{r packages}
+library(dplyr)
+library(here)
+library(readr)
+library(readxl)
+library(stringr)
+```
+
+```{r paths}
+annotation_dir <- here("data", "annotations")
+
+# Preferred input: the unmerged eggNOG-mapper annotation table.
+eggnog_file <- here(annotation_dir, "eggnog_annotations.csv")
+
+# Compatibility input: the previously generated merged table can be used when
+# the original eggNOG table is unavailable.
+legacy_merged_file <- here(annotation_dir, "eggnog_biomineralization.csv")
+
+dylus_file <- here(annotation_dir, "skeletogenic_genes_dylus.tsv")
+pespeni_file <- here(annotation_dir, "biomineralization_genes_pespeni.xlsx")
+
+results_dir <- here("results", "annotations")
+dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
+
+stopifnot(file.exists(dylus_file), file.exists(pespeni_file))
+if (!file.exists(eggnog_file) && !file.exists(legacy_merged_file)) {
+  stop(
+    "Provide either data/annotations/eggnog_annotations.csv or ",
+    "data/annotations/eggnog_biomineralization.csv."
+  )
+}
+```
+
+# Import reference gene lists
+
+```{r reference-lists}
+normalise_spu_id <- function(x) toupper(trimws(as.character(x)))
+
+dylus <- read_tsv(dylus_file, show_col_types = FALSE) |>
+  mutate(spu_id = normalise_spu_id(spu_id)) |>
+  filter(!is.na(spu_id), spu_id != "") |>
+  distinct(spu_id, .keep_all = TRUE)
+
+pespeni <- read_excel(pespeni_file) |>
+  mutate(spu_id = normalise_spu_id(spu_id)) |>
+  filter(!is.na(spu_id), spu_id != "") |>
+  distinct(spu_id, .keep_all = TRUE)
+
+cat("Unique Dylus SPU identifiers:", nrow(dylus), "\n")
+cat("Unique Pespeni SPU identifiers:", nrow(pespeni), "\n")
+cat("Shared identifiers:", length(intersect(dylus$spu_id, pespeni$spu_id)), "\n")
+```
+
+# Build or recover the merged annotation table
+
+```{r merge-annotations}
+if (file.exists(eggnog_file)) {
+  eggnog <- read_csv(eggnog_file, show_col_types = FALSE)
+
+  required_eggnog <- c("gene_id", "seed_ortholog", "evalue", "score")
+  if (!all(required_eggnog %in% names(eggnog))) {
+    stop("eggnog_annotations.csv is missing required columns.")
+  }
+
+  eggnog_biomineralization <- eggnog |>
+    mutate(seed_ortholog = normalise_spu_id(seed_ortholog)) |>
+    left_join(dylus, by = c("seed_ortholog" = "spu_id")) |>
+    left_join(pespeni, by = c("seed_ortholog" = "spu_id"))
+} else {
+  warning(
+    "Using the legacy pre-merged eggnog_biomineralization.csv. ",
+    "Add eggnog_annotations.csv to reproduce the joins from the original input."
+  )
+  eggnog_biomineralization <- read_csv(
+    legacy_merged_file,
+    show_col_types = FALSE
+  ) |>
+    mutate(seed_ortholog = normalise_spu_id(seed_ortholog))
+}
+
+eggnog_biomineralization <- eggnog_biomineralization |>
+  mutate(
+    gene_id = as.character(gene_id),
+    evalue = suppressWarnings(as.numeric(evalue)),
+    score = suppressWarnings(as.numeric(score))
+  )
+
+write_csv(
+  eggnog_biomineralization,
+  file.path(results_dir, "eggnog_biomineralization_merged.csv"),
+  na = ""
+)
+```
+
+# Select one best annotation per gene
+
+```{r best-hit}
+eggnog_best <- eggnog_biomineralization |>
+  filter(!is.na(gene_id), gene_id != "") |>
+  group_by(gene_id) |>
+  arrange(evalue, desc(score), .by_group = TRUE) |>
+  slice(1) |>
+  ungroup() |>
+  mutate(
+    biomineralization_candidate =
+      !is.na(spu_name) | !is.na(Name)
+  )
+
+cat("Unique annotated A. lixula genes:", nrow(eggnog_best), "\n")
+cat(
+  "Unique biomineralization candidates:",
+  sum(eggnog_best$biomineralization_candidate),
+  "\n"
+)
+```
+
+# Functional classification
+
+```{r functional-classes}
+force_include <- "AlixG037988"
+
+text_columns <- intersect(
+  c(
+    "Description", "Preferred_name", "GOs", "PFAMs", "KEGG_Pathway",
+    "KEGG_ko", "Class", "Name", "Ref"
+  ),
+  names(eggnog_best)
+)
+
+classification_text <- apply(
+  eggnog_best[, text_columns, drop = FALSE],
+  1,
+  function(x) paste(x, collapse = " | ")
+)
+
+biomineralization_master <- eggnog_best |>
+  mutate(
+    .class_text = str_to_lower(classification_text),
+    Function_class = case_when(
+      str_detect(
+        .class_text,
+        "mmp|matrix metalloproteinase|metalloprotease|peptidase m10a|astacin|adamts|serine-type endopeptidase|trypsin|chymotrypsin|peptidase inhibitor|timp"
+      ) ~ "ECM remodeling / proteolysis",
+      str_detect(
+        .class_text,
+        "sema|semaphorin|thrombospondin|integrin|cadherin|cell adhesion|scavenger receptor|srcr"
+      ) ~ "ECM-associated signaling / adhesion",
+      str_detect(
+        .class_text,
+        "calcium-activated chloride|clca|chloride channel|clcn|intracellular chloride channel|annexin|calcium ion binding|ef-hand|calmodulin|pmca|atp2b|serca|atp2a|ncx|slc8|v-atpase|atp6v|slc4|slc26|bicarbonate|carbonic anhydrase"
+      ) ~ "Ion & Ca support",
+      str_detect(
+        .class_text,
+        "collagen|c1q.*collagen|extracellular matrix|\\becm\\b|spicule|plate|spine|lectin|c-type lectin|hypp|skeletal|biomineral|calcification|proteoglycan|xylosyltransferase"
+      ) ~ "ECM structure (spicule/plate/spine matrix)",
+      TRUE ~ "Other / unclassified"
+    ),
+    Function_class = if_else(
+      gene_id %in% force_include,
+      "ECM structure (spicule/plate/spine matrix)",
+      Function_class
+    )
+  ) |>
+  select(-.class_text)
+
+class_order <- c(
+  "ECM structure (spicule/plate/spine matrix)",
+  "ECM remodeling / proteolysis",
+  "ECM-associated signaling / adhesion",
+  "Ion & Ca support",
+  "Other / unclassified"
+)
+
+biomineralization_candidates <- biomineralization_master |>
+  filter(biomineralization_candidate | gene_id %in% force_include) |>
+  mutate(Function_class = factor(Function_class, levels = class_order)) |>
+  arrange(Function_class, gene_id)
+
+write_csv(
+  biomineralization_master,
+  file.path(results_dir, "gene_annotations_best_hit.csv"),
+  na = ""
+)
+write_csv(
+  biomineralization_candidates,
+  file.path(results_dir, "biomineralization_candidates.csv"),
+  na = ""
+)
+writeLines(
+  biomineralization_candidates$gene_id,
+  file.path(results_dir, "biomineralization_candidate_genes.txt")
+)
+```
+
+# Reproducibility information
+
+```{r session-info}
+sessionInfo()
+```

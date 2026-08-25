@@ -1,0 +1,201 @@
+---
+title: "Functional annotation and GO enrichment with topGO"
+author: "Vanessa Arranz"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+here::i_am("analysis/02_go_enrichment_topgo.Rmd")
+```
+
+# Purpose
+
+Gene Ontology annotations were assigned to the longest transcript of each
+predicted *Arbacia lixula* protein-coding gene using eggNOG-mapper v2. This
+analysis uses the resulting gene-to-GO associations and applies the `elim`
+algorithm and Fisher's exact test in topGO to
+up- and down-regulated genes from each DESeq2 contrast. As in the original
+analysis, enrichment gene sets use `padj < 0.05` and
+`abs(log2FoldChange) > 1`.
+
+# Packages and paths
+
+```{r packages}
+library(dplyr)
+library(here)
+library(readr)
+library(tidyr)
+library(topGO)
+```
+
+```{r paths}
+deseq_dir <- here("results", "deseq2")
+association_file <- here("data", "annotations", "gene2go.tsv")
+results_dir <- here("results", "topgo")
+dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
+
+if (!file.exists(association_file)) {
+  stop(
+    "Missing data/annotations/gene2go.tsv. The file must contain two ",
+    "tab-separated columns: gene_id and semicolon-separated GO terms."
+  )
+}
+```
+
+# Read gene-to-GO associations
+
+```{r gene2go}
+associations <- read_tsv(
+  association_file,
+  col_names = FALSE,
+  comment = "#",
+  show_col_types = FALSE
+) |>
+  select(1, 2) |>
+  setNames(c("gene_id", "GO")) |>
+  filter(
+    !tolower(gene_id) %in% c("gene", "gene_id", "geneid", "query")
+  ) |>
+  filter(
+    !is.na(gene_id), gene_id != "",
+    !is.na(GO), GO != "", GO != "-"
+  ) |>
+  separate_rows(GO, sep = "[;,]") |>
+  mutate(GO = trimws(GO)) |>
+  filter(grepl("^GO:[0-9]+$", GO)) |>
+  distinct(gene_id, GO)
+
+gene2GO <- split(associations$GO, associations$gene_id)
+cat("Genes with GO annotations:", length(gene2GO), "\n")
+```
+
+# Functions
+
+```{r functions}
+run_topgo_ontology <- function(gene_universe, selected_genes, ontology) {
+  gene_vector <- factor(as.integer(gene_universe %in% selected_genes))
+  names(gene_vector) <- gene_universe
+
+  go_data <- new(
+    "topGOdata",
+    description = paste("Arbacia lixula", ontology),
+    ontology = ontology,
+    allGenes = gene_vector,
+    geneSelectionFun = function(x) x == 1,
+    annot = annFUN.gene2GO,
+    gene2GO = gene2GO
+  )
+
+  fisher_result <- runTest(
+    go_data,
+    algorithm = "elim",
+    statistic = "fisher"
+  )
+
+  result_table <- GenTable(
+    go_data,
+    elimFisher = fisher_result,
+    orderBy = "elimFisher",
+    topNodes = length(usedGO(go_data))
+  )
+
+  result_table |>
+    mutate(
+      ontology = recode(
+        ontology,
+        BP = "Biological Process",
+        MF = "Molecular Function",
+        CC = "Cellular Component"
+      ),
+      elimFisher_numeric = suppressWarnings(
+        as.numeric(sub("^< ", "", elimFisher))
+      )
+    )
+}
+
+run_topgo_set <- function(result_table, direction) {
+  tested <- result_table |>
+    filter(!is.na(padj)) |>
+    pull(gene_id)
+
+  selected <- result_table |>
+    filter(
+      !is.na(padj),
+      padj < 0.05,
+      if (direction == "up") log2FoldChange > 1 else log2FoldChange < -1
+    ) |>
+    pull(gene_id)
+
+  # topGO can only use genes with at least one GO association.
+  universe <- intersect(tested, names(gene2GO))
+  selected <- intersect(selected, universe)
+
+  if (length(selected) == 0) {
+    warning("No selected annotated genes for direction: ", direction)
+    return(tibble())
+  }
+
+  bind_rows(lapply(c("BP", "MF", "CC"), function(ontology) {
+    run_topgo_ontology(universe, selected, ontology)
+  })) |>
+    mutate(
+      direction = direction,
+      universe_size = length(universe),
+      selected_genes = length(selected)
+    )
+}
+```
+
+# Run all contrasts
+
+```{r enrichment}
+contrast_files <- c(
+  VV_vs_CC = "deseq2_VV_vs_CC.csv",
+  CV_vs_CC = "deseq2_CV_vs_CC.csv",
+  VV_vs_CV = "deseq2_VV_vs_CV.csv"
+)
+
+all_enrichment <- lapply(names(contrast_files), function(contrast_name) {
+  input_file <- file.path(deseq_dir, contrast_files[[contrast_name]])
+  if (!file.exists(input_file)) {
+    stop("Run analysis/01_deseq2_analysis.Rmd first: ", input_file)
+  }
+
+  result_table <- read_csv(input_file, show_col_types = FALSE)
+
+  bind_rows(
+    run_topgo_set(result_table, "up"),
+    run_topgo_set(result_table, "down")
+  ) |>
+    mutate(contrast = contrast_name, .before = 1)
+}) |>
+  bind_rows()
+
+write_csv(
+  all_enrichment,
+  file.path(results_dir, "topgo_all_contrasts.csv"),
+  na = ""
+)
+
+significant_enrichment <- all_enrichment |>
+  filter(elimFisher_numeric < 0.05)
+
+write_csv(
+  significant_enrichment,
+  file.path(results_dir, "topgo_significant_p0.05.csv"),
+  na = ""
+)
+
+significant_enrichment
+```
+
+# Reproducibility information
+
+```{r session-info}
+sessionInfo()
+```

@@ -1,0 +1,253 @@
+---
+title: "Arbacia lixula differential expression analysis"
+author: "Vanessa Arranz"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+here::i_am("analysis/01_deseq2_analysis.Rmd")
+```
+
+# Purpose
+
+This analysis reproduces the DESeq2 comparisons reported in Arranz et al.
+(2026). The model contains one three-level treatment factor:
+
+- `CC`: control-origin individuals maintained under control conditions.
+- `CV`: control-origin individuals exposed to vent conditions.
+- `VV`: vent-origin individuals maintained under vent conditions.
+
+The three contrasts represent the chronic response (`VV vs CC`), acute
+plastic response (`CV vs CC`), and genotype/origin effect under shared vent
+conditions (`VV vs CV`). Positive log2 fold changes indicate higher expression
+in the first group named in each contrast.
+
+# Packages and paths
+
+```{r packages}
+library(DESeq2)
+library(dplyr)
+library(ggplot2)
+library(here)
+library(pheatmap)
+library(readr)
+library(RColorBrewer)
+library(tibble)
+```
+
+```{r paths}
+count_file <- here("data", "count_curated.csv")
+metadata_file <- here("data", "sample_metadata.csv")
+
+results_dir <- here("results", "deseq2")
+figure_dir <- here("results", "figures", "deseq2")
+dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+
+stopifnot(file.exists(count_file), file.exists(metadata_file))
+```
+
+# Import and validate data
+
+```{r import}
+count_table <- read_csv(count_file, show_col_types = FALSE)
+metadata <- read_csv(metadata_file, show_col_types = FALSE)
+
+required_metadata <- c(
+  "sample_id", "treatment", "origin_environment",
+  "experimental_environment"
+)
+if (!all(required_metadata %in% names(metadata))) {
+  stop("sample_metadata.csv is missing one or more required columns.")
+}
+if (!"Geneid" %in% names(count_table)) {
+  stop("count_curated.csv must contain a 'Geneid' column.")
+}
+if (anyDuplicated(count_table$Geneid)) {
+  stop("Duplicated gene identifiers detected in count_curated.csv.")
+}
+if (anyDuplicated(metadata$sample_id)) {
+  stop("Duplicated sample identifiers detected in sample_metadata.csv.")
+}
+
+count_data <- count_table |>
+  column_to_rownames("Geneid") |>
+  as.matrix()
+
+storage.mode(count_data) <- "numeric"
+if (anyNA(count_data) || any(count_data < 0) || any(count_data %% 1 != 0)) {
+  stop("The count matrix must contain non-negative integer counts without NAs.")
+}
+
+if (!setequal(colnames(count_data), metadata$sample_id)) {
+  missing_metadata <- setdiff(colnames(count_data), metadata$sample_id)
+  missing_counts <- setdiff(metadata$sample_id, colnames(count_data))
+  stop(
+    "Sample mismatch. Missing from metadata: ",
+    paste(missing_metadata, collapse = ", "),
+    "; missing from counts: ",
+    paste(missing_counts, collapse = ", ")
+  )
+}
+
+metadata <- metadata |>
+  mutate(treatment = factor(treatment, levels = c("CC", "CV", "VV"))) |>
+  slice(match(colnames(count_data), sample_id)) |>
+  as.data.frame()
+rownames(metadata) <- metadata$sample_id
+
+stopifnot(identical(colnames(count_data), rownames(metadata)))
+
+dim(count_data)
+table(metadata$treatment)
+```
+
+# Construct the DESeq2 dataset
+
+```{r dds}
+dds <- DESeqDataSetFromMatrix(
+  countData = count_data,
+  colData = metadata,
+  design = ~ treatment
+)
+
+# Low-expression filter reported in the associated publication: retain genes
+# with at least 10 counts in at least 4 samples.
+keep <- rowSums(counts(dds) >= 10) >= 4
+dds <- dds[keep, ]
+
+cat("Genes in original matrix:", nrow(count_data), "\n")
+cat("Low-expression genes removed:", sum(!keep), "\n")
+cat("Genes retained for DESeq2:", nrow(dds), "\n")
+
+stopifnot(nrow(dds) == 17449)
+```
+
+# Exploratory analysis
+
+```{r transformations}
+dds <- estimateSizeFactors(dds)
+vst_data <- vst(dds, blind = FALSE)
+```
+
+```{r sample-distance, fig.width=8, fig.height=7}
+sample_distances <- dist(t(assay(vst_data)))
+sample_distance_matrix <- as.matrix(sample_distances)
+rownames(sample_distance_matrix) <- paste(
+  colData(vst_data)$treatment,
+  colnames(vst_data),
+  sep = " – "
+)
+colnames(sample_distance_matrix) <- rownames(sample_distance_matrix)
+
+distance_colours <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
+pheatmap(
+  sample_distance_matrix,
+  clustering_distance_rows = sample_distances,
+  clustering_distance_cols = sample_distances,
+  col = distance_colours,
+  border_color = NA
+)
+```
+
+```{r pca, fig.width=7, fig.height=5}
+treatment_colours <- c(CC = "#65b3c1", CV = "#f09e3a", VV = "#e36348")
+
+pca_plot <- plotPCA(vst_data, intgroup = "treatment") +
+  scale_colour_manual(values = treatment_colours) +
+  theme_classic(base_size = 13) +
+  labs(colour = "Treatment")
+
+pca_plot
+ggsave(
+  file.path(figure_dir, "pca_all_genes.pdf"),
+  pca_plot,
+  width = 7,
+  height = 5
+)
+```
+
+# Differential expression
+
+```{r run-deseq2}
+dds <- DESeq(dds)
+
+contrast_definitions <- list(
+  VV_vs_CC = c("treatment", "VV", "CC"),
+  CV_vs_CC = c("treatment", "CV", "CC"),
+  VV_vs_CV = c("treatment", "VV", "CV")
+)
+
+get_contrast <- function(dds_object, contrast_vector, alpha = 0.05) {
+  results(dds_object, contrast = contrast_vector, alpha = alpha) |>
+    as.data.frame() |>
+    rownames_to_column("gene_id") |>
+    arrange(padj)
+}
+
+contrast_results <- lapply(
+  contrast_definitions,
+  function(x) get_contrast(dds, x)
+)
+
+invisible(
+  Map(
+    function(result_table, contrast_name) {
+      write_csv(
+        result_table,
+        file.path(results_dir, paste0("deseq2_", contrast_name, ".csv")),
+        na = ""
+      )
+    },
+    contrast_results,
+    names(contrast_results)
+  )
+)
+```
+
+```{r summary}
+summarise_contrast <- function(result_table) {
+  tibble(
+    tested_genes = sum(!is.na(result_table$padj)),
+    significant_padj_0.05 = sum(result_table$padj < 0.05, na.rm = TRUE),
+    up_lfc1 = sum(
+      result_table$padj < 0.05 & result_table$log2FoldChange > 1,
+      na.rm = TRUE
+    ),
+    down_lfc1 = sum(
+      result_table$padj < 0.05 & result_table$log2FoldChange < -1,
+      na.rm = TRUE
+    )
+  )
+}
+
+deg_summary <- bind_rows(
+  lapply(contrast_results, summarise_contrast),
+  .id = "contrast"
+)
+write_csv(deg_summary, file.path(results_dir, "differential_expression_summary.csv"))
+deg_summary
+```
+
+# Export reusable objects
+
+```{r export-objects}
+saveRDS(dds, file.path(results_dir, "dds.rds"))
+saveRDS(vst_data, file.path(results_dir, "vst_data.rds"))
+
+writeLines(
+  rownames(dds),
+  file.path(results_dir, "tested_gene_universe.txt")
+)
+```
+
+# Reproducibility information
+
+```{r session-info}
+sessionInfo()
+```

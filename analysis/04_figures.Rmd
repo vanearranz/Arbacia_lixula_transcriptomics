@@ -1,0 +1,269 @@
+---
+title: "Figures for the Arbacia lixula transcriptomic analysis"
+author: "Vanessa Arranz"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+here::i_am("analysis/04_figures.Rmd")
+```
+
+# Packages and paths
+
+```{r packages}
+library(DESeq2)
+library(dplyr)
+library(ggplot2)
+library(here)
+library(pheatmap)
+library(readr)
+library(tidyr)
+```
+
+```{r paths}
+deseq_dir <- here("results", "deseq2")
+annotation_dir <- here("results", "annotations")
+figure_dir <- here("results", "figures")
+dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+
+dds_file <- here(deseq_dir, "dds.rds")
+vst_file <- here(deseq_dir, "vst_data.rds")
+stopifnot(file.exists(dds_file), file.exists(vst_file))
+
+dds <- readRDS(dds_file)
+vst_data <- readRDS(vst_file)
+
+treatment_colours <- c(CC = "#65b3c1", CV = "#f09e3a", VV = "#e36348")
+```
+
+# DEG summary
+
+```{r deg-summary, fig.width=9, fig.height=5}
+summary_file <- here(deseq_dir, "differential_expression_summary.csv")
+deg_summary <- read_csv(summary_file, show_col_types = FALSE)
+
+contrast_labels <- c(
+  CV_vs_CC = "Acute response to low pH",
+  VV_vs_CC = "Chronic exposure to low pH",
+  VV_vs_CV = "Genotype-of-origin"
+)
+
+deg_plot_data <- deg_summary |>
+  transmute(
+    contrast = recode(contrast, !!!contrast_labels),
+    Up = up_lfc1,
+    Down = down_lfc1
+  ) |>
+  pivot_longer(c(Up, Down), names_to = "regulation", values_to = "count") |>
+  group_by(contrast) |>
+  mutate(
+    percent = round(100 * count / sum(count)),
+    label = paste0(percent, "%\n", count)
+  ) |>
+  ungroup()
+
+p_deg <- ggplot(
+  deg_plot_data,
+  aes(x = contrast, y = count, fill = regulation)
+) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(
+    aes(label = label),
+    position = position_dodge(width = 0.7),
+    vjust = -0.4,
+    size = 4
+  ) +
+  scale_fill_manual(
+    values = c(Up = "#F2B44E", Down = "#BA90CB"),
+    labels = c(Up = "Up-regulated", Down = "Down-regulated")
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = NULL, y = "Differentially expressed genes", fill = NULL) +
+  theme_classic(base_size = 13) +
+  theme(
+    axis.text.x = element_text(face = "bold"),
+    legend.position = "top"
+  )
+
+p_deg
+ggsave(file.path(figure_dir, "deg_counts.pdf"), p_deg, width = 9, height = 5)
+```
+
+# Volcano plots
+
+```{r volcano-functions}
+contrast_files <- c(
+  VV_vs_CC = "deseq2_VV_vs_CC.csv",
+  CV_vs_CC = "deseq2_CV_vs_CC.csv",
+  VV_vs_CV = "deseq2_VV_vs_CV.csv"
+)
+
+make_volcano <- function(result_table, title) {
+  plot_data <- result_table |>
+    mutate(
+      significance = case_when(
+        !is.na(padj) & padj < 0.05 & log2FoldChange > 1 ~ "Up",
+        !is.na(padj) & padj < 0.05 & log2FoldChange < -1 ~ "Down",
+        TRUE ~ "Not significant"
+      ),
+      minus_log10_padj = -log10(pmax(padj, .Machine$double.xmin))
+    )
+
+  ggplot(plot_data, aes(log2FoldChange, minus_log10_padj, colour = significance)) +
+    geom_point(alpha = 0.6, size = 1.2, na.rm = TRUE) +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+    geom_vline(xintercept = c(-1, 1), linetype = "dashed") +
+    scale_colour_manual(
+      values = c(
+        Down = "#65b3c1",
+        `Not significant` = "grey75",
+        Up = "#e36348"
+      )
+    ) +
+    labs(
+      title = title,
+      x = expression(log[2]~fold~change),
+      y = expression(-log[10]~adjusted~italic(P)),
+      colour = NULL
+    ) +
+    theme_classic(base_size = 13) +
+    theme(legend.position = "top")
+}
+```
+
+```{r volcano-plots, fig.width=7, fig.height=5}
+for (contrast_name in names(contrast_files)) {
+  result_table <- read_csv(
+    file.path(deseq_dir, contrast_files[[contrast_name]]),
+    show_col_types = FALSE
+  )
+  p <- make_volcano(result_table, gsub("_", " ", contrast_name))
+  print(p)
+  ggsave(
+    file.path(figure_dir, paste0("volcano_", contrast_name, ".pdf")),
+    p,
+    width = 7,
+    height = 5
+  )
+}
+```
+
+# Heatmaps of significant genes
+
+```{r heatmap-functions}
+make_deg_heatmap <- function(contrast_name, groups) {
+  result_table <- read_csv(
+    file.path(deseq_dir, contrast_files[[contrast_name]]),
+    show_col_types = FALSE
+  )
+
+  deg_genes <- result_table |>
+    filter(!is.na(padj), padj < 0.05) |>
+    pull(gene_id) |>
+    intersect(rownames(vst_data))
+
+  if (length(deg_genes) == 0) {
+    warning("No significant genes for ", contrast_name)
+    return(invisible(NULL))
+  }
+
+  keep_samples <- colData(vst_data)$treatment %in% groups
+  matrix_data <- assay(vst_data)[deg_genes, keep_samples, drop = FALSE]
+  matrix_data <- matrix_data - rowMeans(matrix_data)
+
+  annotation_col <- data.frame(
+    treatment = droplevels(colData(vst_data)$treatment[keep_samples])
+  )
+  rownames(annotation_col) <- colnames(matrix_data)
+
+  pheatmap(
+    matrix_data,
+    show_rownames = FALSE,
+    show_colnames = FALSE,
+    annotation_col = annotation_col,
+    annotation_colors = list(
+      treatment = treatment_colours[groups]
+    ),
+    cluster_cols = FALSE,
+    border_color = NA,
+    filename = file.path(figure_dir, paste0("heatmap_", contrast_name, ".pdf")),
+    width = 7,
+    height = 7
+  )
+}
+```
+
+```{r heatmaps}
+make_deg_heatmap("VV_vs_CC", c("CC", "VV"))
+make_deg_heatmap("CV_vs_CC", c("CC", "CV"))
+make_deg_heatmap("VV_vs_CV", c("CV", "VV"))
+```
+
+# Biomineralization-gene expression
+
+This section runs after `03_biomineralization_genes.Rmd`. It plots
+mean VST expression for the curated candidate genes that are present in the
+count matrix.
+
+```{r biomineralization-heatmap, fig.width=7, fig.height=10}
+biomineralization_file <- here(
+  annotation_dir,
+  "biomineralization_candidates.csv"
+)
+
+if (file.exists(biomineralization_file)) {
+  candidates <- read_csv(
+    biomineralization_file,
+    show_col_types = FALSE
+  )
+
+  candidate_genes <- intersect(candidates$gene_id, rownames(vst_data))
+  mean_expression <- sapply(levels(colData(vst_data)$treatment), function(group) {
+    rowMeans(
+      assay(vst_data)[
+        candidate_genes,
+        colData(vst_data)$treatment == group,
+        drop = FALSE
+      ]
+    )
+  })
+
+  candidate_annotation <- candidates |>
+    filter(gene_id %in% candidate_genes) |>
+    distinct(gene_id, Function_class) |>
+    as.data.frame()
+  rownames(candidate_annotation) <- candidate_annotation$gene_id
+  candidate_annotation$gene_id <- NULL
+  candidate_annotation <- candidate_annotation[rownames(mean_expression), , drop = FALSE]
+
+  pheatmap(
+    mean_expression,
+    scale = "row",
+    show_rownames = FALSE,
+    cluster_rows = FALSE,
+    cluster_cols = FALSE,
+    annotation_row = candidate_annotation,
+    border_color = NA,
+    main = "Biomineralization-gene expression",
+    filename = file.path(figure_dir, "biomineralization_mean_vst.pdf"),
+    width = 7,
+    height = 10
+  )
+} else {
+  message(
+    "Biomineralization annotations not found. Run analysis/",
+    "03_biomineralization_genes.Rmd first."
+  )
+}
+```
+
+# Reproducibility information
+
+```{r session-info}
+sessionInfo()
+```
