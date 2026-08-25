@@ -34,7 +34,7 @@ The workflow is divided into two main stages:
 
 ### A. Preprocessing and alignment 
 
-The `A.Preprocessing/` directory contains the shell scripts used to process
+The `preprocessing/` directory contains the shell scripts used to process
 the raw paired-end RNA-seq reads, including quality control, rRNA removal,
 adapter and quality trimming, contaminant removal, reference-genome alignment,
 and gene-level quantification.
@@ -49,11 +49,12 @@ featureCounts matrix produced by this workflow is provided as
 
 ### B. Statistical and functional analyses
 
-The `analysis/` directory contains the R Markdown workflows used for:
+The [`analysis/`](analysis/) directory contains the R Markdown workflows used
+for:
 
-1. DESeq2 differential expression analysis;
-2. biomineralization-gene annotation;
-3. GO enrichment with topGO;
+1. differential expression analysis with DESeq2;
+2. functional annotation with eggNOG-mapper and GO enrichment with topGO;
+3. identification and classification of biomineralization-related genes;
 4. generation of figures.
 
 These analyses use `data/count_curated.csv`, `data/sample_metadata.csv`, and
