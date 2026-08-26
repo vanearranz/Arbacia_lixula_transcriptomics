@@ -4,38 +4,27 @@ This directory contains the shell scripts used to process paired-end RNA-seq rea
 
 ## Workflow overview
 
-| Step | Script | Software | Main output |
-|---:|---|---|---|
-| 1 | [`01_fastqc_raw.sh`](01_fastqc_raw.sh) | FastQC | Quality reports for raw reads |
-| 2 | [`02_sortmerna.sh`](02_sortmerna.sh) | SortMeRNA | Paired non-rRNA reads |
-| 3 | [`03_fastqc_non_rrna.sh`](03_fastqc_non_rrna.sh) | FastQC | Quality reports after rRNA removal |
-| 4 | [`04_trimmomatic.sh`](04_trimmomatic.sh) | Trimmomatic | Adapter- and quality-trimmed reads |
-| 5 | [`05_fastqc_trimmed.sh`](05_fastqc_trimmed.sh) | FastQC, MultiQC | Post-trimming QC summary |
-| 6 | [`06_kraken2.sh`](06_kraken2.sh) | Kraken2 | Paired reads not assigned to the contaminant database |
-| 7 | [`07_fastqc_decontaminated.sh`](07_fastqc_decontaminated.sh) | FastQC, MultiQC | QC summary for decontaminated reads |
-| 8 | [`08_hisat2.sh`](08_hisat2.sh) | HISAT2, SAMtools | Coordinate-sorted BAM files |
-| 9 | [`09_alignment_qc.sh`](09_alignment_qc.sh) | FastQC, MultiQC | Alignment-quality summary |
-| 10 | [`10_featurecounts.sh`](10_featurecounts.sh) | featureCounts | Gene-level count files |
+## Workflow overview
 
-## Software requirements
-
-The workflow requires the following command-line programs to be available in the execution environment:
-
-- FastQC v0.12.1
-- MultiQC version 1.33
-- SortMeRNA 4
-- Trimmomatic v 0.40
-- Kraken2 v 2.17.1
-- HISAT2 version 2.2.2
-- SAMtools 1.13
-- featureCounts v2.0.3
+| Step | Script | Software | Version | Main output |
+|---:|---|---|---:|---|
+| 1 | [`01_fastqc_raw.sh`](01_fastqc_raw.sh) | FastQC | 0.12.1 | Quality reports for raw reads |
+| 2 | [`02_sortmerna.sh`](02_sortmerna.sh) | SortMeRNA | 4.3.4 | Paired non-rRNA reads |
+| 3 | [`03_fastqc_non_rrna.sh`](03_fastqc_non_rrna.sh) | FastQC | 0.12.1 | Quality reports after rRNA removal |
+| 4 | [`04_trimmomatic.sh`](04_trimmomatic.sh) | Trimmomatic | 0.40 | Adapter- and quality-trimmed reads |
+| 5 | [`05_fastqc_trimmed.sh`](05_fastqc_trimmed.sh) | FastQC, MultiQC | 0.12.1, 1.33 | Post-trimming QC summary |
+| 6 | [`06_kraken2.sh`](06_kraken2.sh) | Kraken2 | 2.17.1 | Paired reads not assigned to the contaminant database |
+| 7 | [`07_fastqc_decontaminated.sh`](07_fastqc_decontaminated.sh) | FastQC, MultiQC | 0.12.1, 1.33 | QC summary for decontaminated reads |
+| 8 | [`08_hisat2.sh`](08_hisat2.sh) | HISAT2, SAMtools | 2.2.2, 1.13 | Coordinate-sorted BAM files |
+| 9 | [`09_alignment_qc.sh`](09_alignment_qc.sh) | FastQC, MultiQC | 0.12.1, 1.33 | Alignment-quality summary |
+| 10 | [`10_featurecounts.sh`](10_featurecounts.sh) | featureCounts | 2.0.3 | Gene-level count files |
 
 ## Project configuration
 
 The curated scripts use a shared configuration file to avoid machine-specific absolute paths. Copy the example configuration and edit it for the local environment:
 
 ```bash
-cp ../config/config.example.sh ../config/config.sh
+cp preprocessing/config.example.sh preprocessing/config.sh
 ```
 
 At minimum, define:
@@ -47,8 +36,6 @@ At minimum, define:
 - the SortMeRNA reference database;
 - the Kraken2 database;
 - the number of threads available.
-
-The local `config/config.sh` file is excluded from version control.
 
 ## Input read organization
 
@@ -209,7 +196,15 @@ NOTE: Confirm that featureCounts settings match the feature and identifier attri
 
 ## Outputs used for downstream analysis
 
-The primary preprocessing output used by the R workflow is the curated integer gene-count matrix. Column names must correspond exactly to the sample identifiers in `data/sample_metadata.csv`.
+The main preprocessing output used for downstream analysis is the curated integer gene-count matrix:
 
-Downstream differential expression and functional enrichment analyses are documented in [`../analysis/01_deseq2_analysis.Rmd`](../analysis/01_deseq2_analysis.Rmd). Figure-generation code is provided in [`../analysis/02_figures.Rmd`](../analysis/02_figures.Rmd).
+- [`data/count_curated.csv`](../data/count_curated.csv)
+
+Sample information and experimental groups are provided in:
+
+- [`data/sample_metadata.csv`](../data/sample_metadata.csv)
+
+Column names in the count matrix must correspond exactly to the sample identifiers in the metadata file.
+
+All downstream differential-expression, functional-enrichment, biomineralization-gene, and visualization workflows are documented in the [`analysis/`](../analysis/) directory.
 
