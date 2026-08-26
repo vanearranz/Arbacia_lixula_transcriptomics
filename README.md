@@ -83,6 +83,10 @@ If you use this workflow, please cite the associated [Published article](https:/
 
 The code and documentation in this repository are distributed under the [MIT License](LICENSE).
 
+## AI-assisted development
+
+ChatGPT (OpenAI) was used to assist with the organization, documentation, and refinement of the code in this repository. All analytical decisions, code, and documentation were reviewed and validated by the authors.
+
 ## Contact
 
 v.arranz@ub.edu
